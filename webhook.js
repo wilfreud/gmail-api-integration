@@ -1,55 +1,92 @@
+// docs: https://medium.com/@eagnir/understanding-gmails-push-notifications-via-google-cloud-pub-sub-3a002f9350ef
 const express = require("express");
 const app = express();
 const watchGmail = require("./watch");
-const { getEmailById } = require("./gmailService");
+const { getEmailById, getEmailHistory, getEmails} = require("./gmailService");
+
+// TODO: find a way to save on disk (in case server restarts or stuff like that)
+let previousHistoryId = null;
 
 app.use(express.json());
 
+// Log des requêtes entrantes
 app.use((req, res, next) => {
-	console.info(">>> Incoming GET request from ", req.hostname, "(", req.ip, ")",  " ...");
-
+	console.info(`>>> Incoming ${req.method} request from ${req.hostname} (${req.ip}) ...`);
 	next();
-})
+});
 
 app.get("/", (_, res) => {
 	res.status(200).send("<h3>It works dude!</h3>");
-})
+});
 
 let hasStartedWatching = false;
 
-const today = new Date();
 app.post("/pubsub", async (req, res) => {
-  if(!hasStartedWatching) {
-    await watchGmail();
-    hasStartedWatching = true;
+  console.log("📩 Nouvelle notification reçue de Pub/Sub:", new Date().toISOString());
+  
+  console.log("------------------------");
+  console.log(req.body);
+  console.log("------------------------");
+  
+
+  // Vérification du corps du message
+  if (!req.body || !req.body.message || !req.body.message.data) {
+    console.warn("⚠️ Aucune donnée dans le message reçu.");
+    return res.status(400).send("Invalid Pub/Sub message");
   }
 
-  console.log("📩 Nouvelle notification reçue de Pub/Sub: ", today.toString());
+  let decodedMessage;
+  try {
+    decodedMessage = JSON.parse(Buffer.from(req.body.message.data, "base64").toString());
+  } catch (error) {
+    console.error("❌ Erreur lors du décodage du message Pub/Sub:", error);
+    return res.status(400).send("Invalid data format");
+  }
 
-  const decodedMessage = Buffer.from(req.body.message.data, "base64").toString();
-  console.log(req.body)
-  
-  const message = req.body?.message;;
-  
-  console.log("📨 Contenu du message décodé :",decodedMessage);
+  console.log("📨 Contenu du message décodé:", decodedMessage);
 
-  // 👉 Ici, tu peux traiter le message (récupérer l'email, envoyer un webhook, etc.)
-  if(message?.messageId){
-	  console.info("🔍 Querying message infos with id: ", message?.messageId);
-	  try {
-		const emailInfos = await getEmailById(message.messageId);
-		console.info("👀", emailInfos)
-	  }catch(error) {
-		  console.error(error?.response?.data?.error || error);
-	  }
+  let message;
+  try {
+    message = req.body.message;
+  } catch (error) {
+    console.warn("⚠️ Le message Pub/Sub ne semble pas être du JSON valide. Il sera ignoré.");
+	console.log(req.body)
+    return res.status(200).send("Ignored");
+  }
+
+  
+  const queryId = decodedMessage?.historyId;
+  //const queryId = message?.messageId;
+  // Vérification si l'on doit traiter ce message
+  // TODO: review condition
+  if (!queryId) {
+    console.log("⚠️ Message reçu ne contenant pas d'id(s). Ignoré.");
+    return res.status(200).send("No action required");
+  }
+
+  console.info("🔍 Recherche d'email avec ID/historyID:", queryId);
+
+  try {
+    // const emailInfos = await getEmailById(queryId);
+	
+	const emailInfos = await getEmailHistory(previousHistoryId);
+    console.info("👀 Email récupéré:", emailInfos);
+	previousHistoryId = queryId;
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération de l'email:", error?.response?.data?.error || error);
   }
 
   res.status(200).send("OK"); // ⚡ Toujours répondre 200 sinon Pub/Sub va renvoyer le message
 });
 
-app.listen(17899, async() => {
-  await watchGmail();
-  hasStartedWatching = true;
-  console.log("✅ Serveur Pub/Sub en écoute sur port 17899");
+app.listen(17899, async () => {
+  try {
+    const res = await watchGmail();
+	// NOTE: cf to part where I say to save on disk, this could create gaps if app was down and mails arrived in between
+	previousHistoryId = res?.historyId;
+    hasStartedWatching = true;
+    console.log("✅ Serveur Pub/Sub en écoute sur port 17899");
+  } catch (error) {
+    console.error("❌ Erreur lors de l'activation de la surveillance Gmail:", error);
   }
-);
+});
