@@ -10,6 +10,7 @@ const getGmailService = () => {
   return google.gmail({ version: "v1", auth: oAuth2Client });
 };
 
+// TODO: implement later
 const getProfile = async() => {
 	const gmail = getGmailService();
 	const response = await gmail.users.getProfile({userId: "me"});
@@ -21,7 +22,7 @@ const getEmailById = async (messageId) => {
   const gmail = getGmailService();
   const res = await gmail.users.messages.get({
     userId: "me",
-    // id: messageId,
+    id: messageId,
     format: "full", // "full", "metadata" ou "raw"
   });
   return res.data;
@@ -46,11 +47,13 @@ const getEmailHistory = async (historyId) => {
     historyTypes: ["messageAdded"] // On veut seulement les nouveaux emails
   });
   
-  console.log("++++++++++++++++++++", res.data, "\n+++++++++++++++++++++")
-  
   const newEmails = res.data.history?.flatMap(h => h.messages) || [];
   return newEmails;
 };
+
+const processEmail = async (email) => {
+	console.log("🛞 Processing email ...", email)
+} 
 
 
 exports.getEmailById = getEmailById;

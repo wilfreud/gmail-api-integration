@@ -24,9 +24,9 @@ let hasStartedWatching = false;
 app.post("/pubsub", async (req, res) => {
   console.log("📩 Nouvelle notification reçue de Pub/Sub:", new Date().toISOString());
   
-  console.log("------------------------");
-  console.log(req.body);
-  console.log("------------------------");
+  // console.log("------------------------");
+  // console.log(req.body);
+  // console.log("------------------------");
   
 
   // Vérification du corps du message
@@ -56,7 +56,6 @@ app.post("/pubsub", async (req, res) => {
 
   
   const queryId = decodedMessage?.historyId;
-  //const queryId = message?.messageId;
   // Vérification si l'on doit traiter ce message
   // TODO: review condition
   if (!queryId) {
@@ -66,12 +65,17 @@ app.post("/pubsub", async (req, res) => {
 
   console.info("🔍 Recherche d'email avec ID/historyID:", queryId);
 
-  try {
-    // const emailInfos = await getEmailById(queryId);
-	
+  try {	
 	const emailInfos = await getEmailHistory(previousHistoryId);
-    console.info("👀 Email récupéré:", emailInfos);
+    console.info("👀", emailInfos.length ,"Emails récupérés");
 	previousHistoryId = queryId;
+	
+	// récupération du contenu de chaque mail
+	for(const mail of emailInfos) {
+		console.log("Mail >>>> ", mail);
+		const content = await getEmailById(mail.id);
+		console.log(content);
+	}
   } catch (error) {
     console.error("❌ Erreur lors de la récupération de l'email:", error?.response?.data?.error || error);
   }
