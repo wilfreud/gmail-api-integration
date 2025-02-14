@@ -15,7 +15,8 @@ const authUrl = oAuth2Client.generateAuthUrl({
   scope: [
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.metadata",
+  "https://www.googleapis.com/auth/gmail.labels",
+   // "https://www.googleapis.com/auth/gmail.metadata",
   ],
 });
 

@@ -15,12 +15,10 @@ const getEmailById = async (messageId) => {
   const res = await gmail.users.messages.get({
     userId: "me",
     id: messageId,
-    format: "full", // "full", "metadata" ou "raw"
+    // format: "full", // "full", "metadata" ou "raw"
   });
   return res.data;
 };
 
-module.exports = getGmailService;
-// module.exports = { getEmailById };
-exports.getGmailService = getGmailService
-exports.getEmailById = getEmailById
+exports.getEmailById = getEmailById;
+exports.getGmailService = getGmailService;

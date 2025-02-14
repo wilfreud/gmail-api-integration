@@ -1,6 +1,6 @@
 const dotenv = require("dotenv");
 dotenv.config(".env");
-const getGmailService = require("./gmailService")
+const { getGmailService } = require("./gmailService")
 
 const watchGmail = async () => {
   console.warn("⏳ Attempting to watch emails...");
