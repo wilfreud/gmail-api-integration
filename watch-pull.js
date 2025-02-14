@@ -1,7 +1,7 @@
 const { PubSub } = require("@google-cloud/pubsub");
 const dotenv = require("dotenv");
-dotenv.config(".env")
-const {getEmailById} = require("./gmailService"); 
+dotenv.config(".env");
+const { getEmailById } = require("./gmailService");
 
 // Remplace avec ton ID de projet et le nom de ta subscription
 const projectId = process.env.GC_PROJECT_ID;
@@ -16,11 +16,11 @@ async function pullMessages() {
 
   subscription.on("message", async (message) => {
     console.log(`📩 Nouveau message reçu : ${message.id}`);
-    
+
     // 📌 Décoder le message Pub/Sub
     const decodedData = Buffer.from(message.data, "base64").toString();
     console.log("📨 Contenu du message :", decodedData);
-    
+
     // 🔄 Marquer le message comme traité (sinon Pub/Sub le renverra)
     message.ack();
 
@@ -40,4 +40,3 @@ async function pullMessages() {
 }
 
 pullMessages().catch(console.error);
-

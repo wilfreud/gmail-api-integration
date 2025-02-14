@@ -7,16 +7,20 @@ const credentials = JSON.parse(fs.readFileSync("credentials.json"));
 
 // Extraire les informations nécessaires
 const { client_secret, client_id, redirect_uris } = credentials.web;
-const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+const oAuth2Client = new google.auth.OAuth2(
+  client_id,
+  client_secret,
+  redirect_uris[0],
+);
 
 // Générer l'URL d'authentification
 const authUrl = oAuth2Client.generateAuthUrl({
   access_type: "offline",
   scope: [
-  "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.labels",
-   // "https://www.googleapis.com/auth/gmail.metadata",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.labels",
+    // "https://www.googleapis.com/auth/gmail.metadata",
   ],
 });
 

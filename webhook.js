@@ -2,7 +2,7 @@
 const express = require("express");
 const app = express();
 const watchGmail = require("./watch");
-const { getEmailById, getEmailHistory, getEmails} = require("./gmailService");
+const { getEmailById, getEmailHistory, getEmails } = require("./gmailService");
 
 // TODO: find a way to save on disk (in case server restarts or stuff like that)
 let previousHistoryId = null;
@@ -11,23 +11,27 @@ app.use(express.json());
 
 // Log des requêtes entrantes
 app.use((req, res, next) => {
-	console.info(`>>> Incoming ${req.method} request from ${req.hostname} (${req.ip}) ...`);
-	next();
+  console.info(
+    `>>> Incoming ${req.method} request from ${req.hostname} (${req.ip}) ...`,
+  );
+  next();
 });
 
 app.get("/", (_, res) => {
-	res.status(200).send("<h3>It works dude!</h3>");
+  res.status(200).send("<h3>It works dude!</h3>");
 });
 
 let hasStartedWatching = false;
 
 app.post("/pubsub", async (req, res) => {
-  console.log("📩 Nouvelle notification reçue de Pub/Sub:", new Date().toISOString());
-  
+  console.log(
+    "📩 Nouvelle notification reçue de Pub/Sub:",
+    new Date().toISOString(),
+  );
+
   // console.log("------------------------");
   // console.log(req.body);
   // console.log("------------------------");
-  
 
   // Vérification du corps du message
   if (!req.body || !req.body.message || !req.body.message.data) {
@@ -37,7 +41,9 @@ app.post("/pubsub", async (req, res) => {
 
   let decodedMessage;
   try {
-    decodedMessage = JSON.parse(Buffer.from(req.body.message.data, "base64").toString());
+    decodedMessage = JSON.parse(
+      Buffer.from(req.body.message.data, "base64").toString(),
+    );
   } catch (error) {
     console.error("❌ Erreur lors du décodage du message Pub/Sub:", error);
     return res.status(400).send("Invalid data format");
@@ -49,12 +55,13 @@ app.post("/pubsub", async (req, res) => {
   try {
     message = req.body.message;
   } catch (error) {
-    console.warn("⚠️ Le message Pub/Sub ne semble pas être du JSON valide. Il sera ignoré.");
-	console.log(req.body)
+    console.warn(
+      "⚠️ Le message Pub/Sub ne semble pas être du JSON valide. Il sera ignoré.",
+    );
+    console.log(req.body);
     return res.status(200).send("Ignored");
   }
 
-  
   const queryId = decodedMessage?.historyId;
   // Vérification si l'on doit traiter ce message
   // TODO: review condition
@@ -65,19 +72,22 @@ app.post("/pubsub", async (req, res) => {
 
   console.info("🔍 Recherche d'email avec ID/historyID:", queryId);
 
-  try {	
-	const emailInfos = await getEmailHistory(previousHistoryId);
-    console.info("👀", emailInfos.length ,"Emails récupérés");
-	previousHistoryId = queryId;
-	
-	// récupération du contenu de chaque mail
-	for(const mail of emailInfos) {
-		console.log("Mail >>>> ", mail);
-		const content = await getEmailById(mail.id);
-		console.log(content);
-	}
+  try {
+    const emailInfos = await getEmailHistory(previousHistoryId);
+    console.info("👀", emailInfos.length, "Emails récupérés");
+    previousHistoryId = queryId;
+
+    // récupération du contenu de chaque mail
+    for (const mail of emailInfos) {
+      console.log("Mail >>>> ", mail);
+      const content = await getEmailById(mail.id);
+      console.log(content);
+    }
   } catch (error) {
-    console.error("❌ Erreur lors de la récupération de l'email:", error?.response?.data?.error || error);
+    console.error(
+      "❌ Erreur lors de la récupération de l'email:",
+      error?.response?.data?.error || error,
+    );
   }
 
   res.status(200).send("OK"); // ⚡ Toujours répondre 200 sinon Pub/Sub va renvoyer le message
@@ -86,11 +96,14 @@ app.post("/pubsub", async (req, res) => {
 app.listen(17899, async () => {
   try {
     const res = await watchGmail();
-	// NOTE: cf to part where I say to save on disk, this could create gaps if app was down and mails arrived in between
-	previousHistoryId = res?.historyId;
+    // NOTE: cf to part where I say to save on disk, this could create gaps if app was down and mails arrived in between
+    previousHistoryId = res?.historyId;
     hasStartedWatching = true;
     console.log("✅ Serveur Pub/Sub en écoute sur port 17899");
   } catch (error) {
-    console.error("❌ Erreur lors de l'activation de la surveillance Gmail:", error);
+    console.error(
+      "❌ Erreur lors de l'activation de la surveillance Gmail:",
+      error,
+    );
   }
 });
