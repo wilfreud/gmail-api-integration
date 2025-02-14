@@ -1,5 +1,6 @@
 const express = require("express");
 const app = express();
+const watchGmail = require("./watch");
 
 app.use(express.json());
 
@@ -9,7 +10,14 @@ app.get("/", (req, res) => {
 	res.status(200).send("<h3>It works dude!</h3>");
 })
 
-app.post("/pubsub", (req, res) => {
+let hasStartedWatching = false;
+
+app.post("/pubsub", async (req, res) => {
+  if(!hasStartedWatching) {
+    await watchGmail();
+    hasStartedWatching = true;
+  }
+
   console.log("📩 Nouvelle notification reçue de Pub/Sub:", JSON.stringify(req.body, null, 2));
 
   const message = Buffer.from(req.body.message.data, "base64").toString();
