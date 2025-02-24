@@ -42,17 +42,65 @@ const getEmails = async (maxResults = 10) => {
   return res.data;
 };
 
-const getEmailHistory = async (historyId) => {
+const getEmailHistory = async (
+  historyId,
+  keyword,
+  config = { verbose: false },
+) => {
   const gmail = getGmailService();
 
-  const res = await gmail.users.history.list({
-    userId: "me",
-    startHistoryId: historyId,
-    historyTypes: ["messageAdded"], // On veut seulement les nouveaux emails
-  });
+  try {
+    const res = await gmail.users.history.list({
+      userId: "me",
+      startHistoryId: historyId,
+      historyTypes: ["messageAdded"],
+    });
 
-  const newEmails = res.data.history?.flatMap((h) => h.messages) || [];
-  return newEmails;
+    if (config.verbose) {
+      console.log(
+        "🔄 Réponse de l'API history.list:",
+        JSON.stringify(res.data, null, 2),
+      );
+    }
+
+    if (!res.data.history) {
+      console.warn("⚠️ Aucune entrée history détectée.");
+      return [];
+    }
+
+    // Récupération des emails ajoutés
+    const newEmails = res.data.history.flatMap((h) => h.messages || []);
+
+    // 📩 Récupérer les détails des emails pour filtrer sur l'objet
+    const filteredEmails = [];
+    for (const email of newEmails) {
+      const fullEmail = await getEmailById(email.id);
+
+      // early stop if no keyword is provided
+      if (!keyword) {
+        filteredEmails.push(fullEmail);
+        continue;
+      }
+
+      const subjectHeader = fullEmail.payload.headers.find(
+        (h) => h.name === "Subject",
+      );
+      const subject = subjectHeader ? subjectHeader.value : "";
+
+      console.log(`📌 Sujet de l'email: "${subject}"`);
+
+      if (!keyword) reutnr;
+
+      if (subject.toLowerCase().includes(keyword.toLowerCase())) {
+        filteredEmails.push(fullEmail);
+      }
+    }
+
+    return filteredEmails;
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération de l'historique:", error);
+    return [];
+  }
 };
 
 const processEmail = async (email) => {

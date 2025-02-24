@@ -73,16 +73,13 @@ app.post("/pubsub", async (req, res) => {
   console.info("🔍 Recherche d'email avec ID/historyID:", queryId);
 
   try {
-    const emailInfos = await getEmailHistory(previousHistoryId);
+    const emailInfos = await getEmailHistory(previousHistoryId, "SINISTRE");
     console.info("👀", emailInfos.length, "Emails récupérés");
     previousHistoryId = queryId;
 
-    // récupération du contenu de chaque mail
-    for (const mail of emailInfos) {
+    emailInfos.forEach((mail) => {
       console.log("Mail >>>> ", mail);
-      const content = await getEmailById(mail.id);
-      console.log(content);
-    }
+    });
   } catch (error) {
     console.error(
       "❌ Erreur lors de la récupération de l'email:",
