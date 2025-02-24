@@ -2,7 +2,7 @@
 const express = require("express");
 const app = express();
 const watchGmail = require("./watch");
-const { getEmailHistory } = require("./gmailService");
+const { getEmailHistory, extractEmailDetails } = require("./gmailService");
 
 // TODO: find a way to save on disk (in case server restarts or stuff like that)
 let previousHistoryId = null;
@@ -71,9 +71,10 @@ app.post("/pubsub", async (req, res) => {
     console.info("👀", emailInfos.length, "Emails récupérés");
     previousHistoryId = queryId;
 
-    emailInfos.forEach((mail) => {
-      console.log("Mail >>>> ", mail);
-    });
+    if (emailInfos.length > 0) {
+      const emailsDetails = await extractEmailDetails(emailInfos);
+      console.dir(emailsDetails, { depth: null });
+    }
   } catch (error) {
     console.error(
       "❌ Erreur lors de la récupération de l'email:",
