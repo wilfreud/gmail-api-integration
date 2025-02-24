@@ -126,23 +126,47 @@ const cleanEmailBody = (body) => {
 };
 
 /**
- * Extracts details from a list of email objects.
+ * Extracts detailed information from a list of email objects.
  *
- * @param {Array} emails - An array of email objects to extract details from.
- * @returns {Promise<Array>} A promise that resolves to an array of objects containing email details.
- * @returns {Object} return[].id - The ID of the email.
+ * @param {Array<Object>} emails - The list of email objects to extract details from.
+ * @param {Object} emails[].payload - The payload of the email.
+ * @param {Array<Object>} emails[].payload.headers - The headers of the email.
+ * @param {Object} emails[].payload.body - The body of the email.
+ * @param {Array<Object>} [emails[].payload.parts] - The parts of the email, if any.
+ * @param {string} emails[].id - The unique identifier of the email.
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of email details.
+ * @returns {Object} return[].sender - The sender information.
+ * @returns {string} return[].sender.name - The name of the sender.
+ * @returns {string} return[].sender.email - The email address of the sender.
  * @returns {string} return[].subject - The subject of the email.
- * @returns {string} return[].body - The body content of the email, either plain text or HTML.
- * @returns {Array} return[].attachments - An array of attachment objects.
+ * @returns {Array<string>} return[].to - The list of "To" recipients.
+ * @returns {Array<string>} return[].cc - The list of "Cc" recipients.
+ * @returns {Array<string>} return[].bcc - The list of "Bcc" recipients.
+ * @returns {string} return[].body - The body content of the email.
+ * @returns {Array<Object>} return[].attachments - The list of attachments.
  * @returns {string} return[].attachments[].filename - The filename of the attachment.
- * @returns {string} return[].attachments[].attachmentId - The ID of the attachment.
+ * @returns {string} return[].attachments[].attachmentId - The attachment ID.
  * @returns {string} return[].attachments[].mimeType - The MIME type of the attachment.
  */
 const extractEmailDetails = async (emails) => {
   return emails.map((email) => {
     const headers = email.payload.headers;
 
-    // 🏷️ Récupération de l'objet (subject)
+    // 🔍 Récupération du champ "From"
+    const fromHeader = headers.find((h) => h.name.toLowerCase() === "from");
+    let sender = { name: "", email: "" };
+
+    if (fromHeader && fromHeader.value) {
+      const match = fromHeader.value.match(/^(.*?)\s*<(.+?)>$/);
+      if (match) {
+        sender.name = match[1].replace(/"/g, "").trim(); // Suppression des guillemets éventuels
+        sender.email = match[2].trim();
+      } else {
+        sender.email = fromHeader.value.trim(); // Cas où il n'y a que l'email
+      }
+    }
+
+    // 🏷️ Récupération du sujet
     const subjectHeader = headers.find((h) => h.name === "Subject");
     const subject = subjectHeader ? subjectHeader.value : "Sans objet";
 
@@ -156,9 +180,9 @@ const extractEmailDetails = async (emails) => {
 
     const to = getHeaderValue("To");
     const cc = getHeaderValue("Cc");
-    const bcc = getHeaderValue("Bcc"); // ⚠️ Visible uniquement si tu es l'expéditeur
+    const bcc = getHeaderValue("Bcc");
 
-    // 📝 Extraction du contenu du mail
+    // 📝 Extraction du corps du mail
     let bodyContent = "";
 
     const extractTextFromParts = (parts) => {
@@ -167,7 +191,6 @@ const extractEmailDetails = async (emails) => {
           return Buffer.from(part.body.data, "base64").toString("utf-8");
         }
         if (part.parts) {
-          // 🔄 Récursion pour explorer les sous-parties
           const extracted = extractTextFromParts(part.parts);
           if (extracted) return extracted;
         }
@@ -183,7 +206,6 @@ const extractEmailDetails = async (emails) => {
       bodyContent = extractTextFromParts(email.payload.parts);
     }
 
-    // ✂️ Nettoyage du corps du mail (suppression des citations, signatures, etc.)
     bodyContent = cleanEmailBody(bodyContent);
 
     // 📎 Extraction des pièces jointes
@@ -202,10 +224,11 @@ const extractEmailDetails = async (emails) => {
 
     return {
       id: email.id,
+      sender, // 👈 Ajout de l'expéditeur (nom + email)
       subject,
       to,
       cc,
-      bcc, // ⚠️ Peut être vide si Gmail ne le fournit pas
+      bcc,
       body: bodyContent,
       attachments,
     };
