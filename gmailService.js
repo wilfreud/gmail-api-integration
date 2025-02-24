@@ -53,6 +53,7 @@ const getEmailHistory = async (
     const res = await gmail.users.history.list({
       userId: "me",
       startHistoryId: historyId,
+      labelIds: ["INBOX"], 
       historyTypes: ["messageAdded"],
     });
 
