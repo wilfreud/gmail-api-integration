@@ -2,7 +2,7 @@
 const express = require("express");
 const app = express();
 const watchGmail = require("./watch");
-const { getEmailById, getEmailHistory, getEmails } = require("./gmailService");
+const { getEmailHistory } = require("./gmailService");
 
 // TODO: find a way to save on disk (in case server restarts or stuff like that)
 let previousHistoryId = null;
@@ -21,17 +21,11 @@ app.get("/", (_, res) => {
   res.status(200).send("<h3>It works dude!</h3>");
 });
 
-let hasStartedWatching = false;
-
 app.post("/pubsub", async (req, res) => {
   console.log(
     "📩 Nouvelle notification reçue de Pub/Sub:",
     new Date().toISOString(),
   );
-
-  // console.log("------------------------");
-  // console.log(req.body);
-  // console.log("------------------------");
 
   // Vérification du corps du message
   if (!req.body || !req.body.message || !req.body.message.data) {
@@ -95,7 +89,6 @@ app.listen(17899, async () => {
     const res = await watchGmail();
     // NOTE: cf to part where I say to save on disk, this could create gaps if app was down and mails arrived in between
     previousHistoryId = res?.historyId;
-    hasStartedWatching = true;
     console.log("✅ Serveur Pub/Sub en écoute sur port 17899");
   } catch (error) {
     console.error(
