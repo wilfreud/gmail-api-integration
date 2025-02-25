@@ -241,7 +241,6 @@ const extractEmailDetails = async (emails) => {
             const attachBase64 = await getAttachment(
               email.id,
               part.body.attachmentId,
-              part.mimeType,
             );
             attachments.push({
               filename: part.filename,
@@ -272,10 +271,9 @@ const extractEmailDetails = async (emails) => {
  *
  * @param {string} messageId - The ID of the Gmail message containing the attachment.
  * @param {string} attachmentId - The ID of the attachment to retrieve.
- * @param {string} mimeType - The MIME type of the expected attachment file
  * @returns {Promise<string|null>} A promise that resolves to the base64 encoding of the attachment, or null if an error occurs.
  */
-const getAttachment = async (messageId, attachmentId, mimeType) => {
+const getAttachment = async (messageId, attachmentId) => {
   const gmail = getGmailService();
 
   try {
@@ -287,7 +285,7 @@ const getAttachment = async (messageId, attachmentId, mimeType) => {
 
     // return res.data?.data;
 
-    return `data:${mimeType};base64,${res.data.data}`;
+    return res.data.data;
   } catch (error) {
     console.error(
       "❌ Erreur lors de la récupération de la pièce jointe :",
