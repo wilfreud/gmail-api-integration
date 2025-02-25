@@ -3,6 +3,7 @@ const express = require("express");
 const app = express();
 const watchGmail = require("./watch");
 const { getEmailHistory, extractEmailDetails } = require("./gmailService");
+const sendMail = require("./sendEmail");
 
 // TODO: find a way to save on disk (in case server restarts or stuff like that)
 let previousHistoryId = null;
@@ -73,6 +74,19 @@ app.post("/pubsub", async (req, res) => {
 
     if (emailInfos.length > 0) {
       const emailsDetails = await extractEmailDetails(emailInfos);
+
+      // This is for some personal use, don't mind
+      await fetch("http://localhost:10000/api/pubsub", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ emailsDetails: emailsDetails }),
+      })
+        .then((data) => console.log("📬 Email details sent successfully:"))
+        .catch((error) =>
+          console.error("❌ Error sending email details:", error),
+        );
       console.dir(emailsDetails, { depth: null });
     }
   } catch (error) {
@@ -83,6 +97,41 @@ app.post("/pubsub", async (req, res) => {
   }
 
   res.status(200).send("OK"); // ⚡ Toujours répondre 200 sinon Pub/Sub va renvoyer le message
+});
+
+// 📧 Send email endpoint
+app.post("/send-email", async (req, res) => {
+  try {
+    const { to, subject, text, html, attachments } = req.body;
+
+    if (!to || !subject || (!text && !html)) {
+      return res
+        .status(400)
+        .json({
+          error: "Missing required fields: 'to', 'subject', 'text' or 'html'",
+        });
+    }
+
+    // Validate attachments if provided
+    const validAttachments = Array.isArray(attachments)
+      ? attachments.filter(
+          (file) => file.filename && file.path && fs.existsSync(file.path),
+        )
+      : [];
+
+    const response = await sendMail({
+      to,
+      subject,
+      text,
+      html,
+      attachments: validAttachments,
+    });
+
+    res.status(200).json({ message: "Email sent successfully!", response });
+  } catch (error) {
+    console.error("❌ Error sending email:", error);
+    res.status(500).json({ error: "Failed to send email" });
+  }
 });
 
 app.listen(17899, async () => {
