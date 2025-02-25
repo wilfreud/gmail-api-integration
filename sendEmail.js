@@ -2,53 +2,50 @@ const fs = require("fs");
 const MailComposer = require("nodemailer/lib/mail-composer");
 const getGmailService = require("./gmailService");
 
-/**
- * Send an email using Gmail API with optional attachments.
- *
- * @param {Object} options - Email sending options.
- * @param {string} options.to - Recipient email address.
- * @param {string} options.subject - Email subject.
- * @param {string} options.text - Plain text body.
- * @param {string} [options.html] - Optional HTML body.
- * @param {Array<{ filename: string, path: string }>} [options.attachments] - Optional list of attachments.
- */
 const sendMail = async ({ to, subject, text, html, attachments = [] }) => {
   const gmail = getGmailService();
 
-  // Prepare mail options
+  // Validate and read file attachments
+  const validAttachments = attachments
+    .filter((file) => file.filename && file.path && fs.existsSync(file.path))
+    .map((file) => ({
+      filename: file.filename,
+      content: fs.readFileSync(file.path).toString("base64"), // Convert file to Base64
+      encoding: "base64",
+    }));
+
+  // Create email
   const mailOptions = {
-    from: "Commodore64 <your-email@gmail.com>",
+    from: "Commodore64",
     to,
     subject,
     text,
     html,
-    attachments: attachments.map((file) => ({
-      filename: file.filename,
-      content: fs.createReadStream(file.path),
-    })),
+    attachments: validAttachments,
   };
 
-  try {
-    // Encode the email in base64
-    const mail = new MailComposer(mailOptions);
-    const message = await mail.compile().build();
-    const encodedMessage = Buffer.from(message)
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_");
+  // Encode email using MailComposer
+  const mail = new MailComposer(mailOptions);
+  const message = await mail.compile().build();
+  const encodedMessage = Buffer.from(message)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
 
-    // Send email via Gmail API
+  // Send email via Gmail API
+  try {
     const response = await gmail.users.messages.send({
       userId: "me",
-      requestBody: { raw: encodedMessage },
+      requestBody: {
+        raw: encodedMessage,
+      },
     });
-
-    console.log("✅ Email sent successfully:", response.data);
-    return response.data;
+    console.log("✅ Email sent:", response.data);
   } catch (error) {
     console.error("❌ Error sending email:", error);
-    throw error;
   }
 };
+
+module.exports = sendMail;
 
 module.exports = sendMail;
