@@ -14,6 +14,29 @@ const getGmailService = () => {
   return google.gmail({ version: "v1", auth: oAuth2Client });
 };
 
+/**
+ * Fonction pour extraire le type MIME à partir du fichier ou de l'extension
+ * Returns the MIME type based on the file extension.
+ *
+ * @param {string} filename - The name of the file to get the MIME type for.
+ * @returns {string} The MIME type corresponding to the file extension.
+ */
+const getMimeTypeFromFile = (filename) => {
+  const ext = path.extname(filename).toLowerCase();
+  switch (ext) {
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".pdf":
+      return "application/pdf";
+    // Ajouter d'autres types si nécessaire
+    default:
+      return "application/octet-stream"; // Type générique pour les autres fichiers
+  }
+};
+
 // TODO: implement later
 const getProfile = async () => {
   const gmail = getGmailService();
@@ -218,6 +241,7 @@ const extractEmailDetails = async (emails) => {
             const attachBase64 = await getAttachment(
               email.id,
               part.body.attachmentId,
+              part.mimeType,
             );
             attachments.push({
               filename: part.filename,
@@ -248,9 +272,10 @@ const extractEmailDetails = async (emails) => {
  *
  * @param {string} messageId - The ID of the Gmail message containing the attachment.
  * @param {string} attachmentId - The ID of the attachment to retrieve.
+ * @param {string} mimeType - The MIME type of the expected attachment file
  * @returns {Promise<string|null>} A promise that resolves to the base64 encoding of the attachment, or null if an error occurs.
  */
-const getAttachment = async (messageId, attachmentId) => {
+const getAttachment = async (messageId, attachmentId, mimeType) => {
   const gmail = getGmailService();
 
   try {
@@ -260,9 +285,9 @@ const getAttachment = async (messageId, attachmentId) => {
       id: attachmentId,
     });
 
-    return res.data?.data;
+    // return res.data?.data;
 
-    // return `data:${res.data.mimeType};base64,${res.data.data}`;
+    return `data:${mimeType};base64,${res.data.data}`;
   } catch (error) {
     console.error(
       "❌ Erreur lors de la récupération de la pièce jointe :",
@@ -278,4 +303,4 @@ exports.getEmailHistory = getEmailHistory;
 exports.getProfile = getProfile;
 exports.getEmails = getEmails;
 exports.extractEmailDetails = extractEmailDetails;
-exports.getAttachment = getAttachment;
+// exports.getAttachment = getAttachment;
