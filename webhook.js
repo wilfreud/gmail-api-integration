@@ -4,6 +4,7 @@ const app = express();
 const watchGmail = require("./watch");
 const { getEmailHistory, extractEmailDetails } = require("./gmailService");
 const sendMail = require("./sendEmail");
+const fs = require("node:fs");
 
 // TODO: find a way to save on disk (in case server restarts or stuff like that)
 let previousHistoryId = null;
@@ -105,11 +106,9 @@ app.post("/send-email", async (req, res) => {
     const { to, subject, text, html, attachments } = req.body;
 
     if (!to || !subject || (!text && !html)) {
-      return res
-        .status(400)
-        .json({
-          error: "Missing required fields: 'to', 'subject', 'text' or 'html'",
-        });
+      return res.status(400).json({
+        error: "Missing required fields: 'to', 'subject', 'text' or 'html'",
+      });
     }
 
     // Validate attachments if provided

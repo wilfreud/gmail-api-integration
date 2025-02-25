@@ -147,92 +147,129 @@ const cleanEmailBody = (body) => {
  * @returns {string} return[].attachments[].filename - The filename of the attachment.
  * @returns {string} return[].attachments[].attachmentId - The attachment ID.
  * @returns {string} return[].attachments[].mimeType - The MIME type of the attachment.
+ * @returns {string} return[].attachments[].base64 - The base64 representation of the attachment.
  */
 const extractEmailDetails = async (emails) => {
-  return emails.map((email) => {
-    const headers = email.payload.headers;
+  return await Promise.all(
+    emails.map(async (email) => {
+      const headers = email.payload.headers;
 
-    // 🔍 Récupération du champ "From"
-    const fromHeader = headers.find((h) => h.name.toLowerCase() === "from");
-    let sender = { name: "", email: "" };
+      // 🔍 Extraction de l'expéditeur
+      const fromHeader = headers.find((h) => h.name.toLowerCase() === "from");
+      let sender = { name: "", email: "" };
 
-    if (fromHeader && fromHeader.value) {
-      const match = fromHeader.value.match(/^(.*?)\s*<(.+?)>$/);
-      if (match) {
-        sender.name = match[1].replace(/"/g, "").trim(); // Suppression des guillemets éventuels
-        sender.email = match[2].trim();
-      } else {
-        sender.email = fromHeader.value.trim(); // Cas où il n'y a que l'email
-      }
-    }
-
-    // 🏷️ Récupération du sujet
-    const subjectHeader = headers.find((h) => h.name === "Subject");
-    const subject = subjectHeader ? subjectHeader.value : "Sans objet";
-
-    // 📧 Récupération des destinataires
-    const getHeaderValue = (name) => {
-      const header = headers.find(
-        (h) => h.name.toLowerCase() === name.toLowerCase(),
-      );
-      return header ? header.value.split(",").map((addr) => addr.trim()) : [];
-    };
-
-    const to = getHeaderValue("To");
-    const cc = getHeaderValue("Cc");
-    const bcc = getHeaderValue("Bcc");
-
-    // 📝 Extraction du corps du mail
-    let bodyContent = "";
-
-    const extractTextFromParts = (parts) => {
-      for (const part of parts) {
-        if (part.mimeType === "text/plain" && part.body?.data) {
-          return Buffer.from(part.body.data, "base64").toString("utf-8");
-        }
-        if (part.parts) {
-          const extracted = extractTextFromParts(part.parts);
-          if (extracted) return extracted;
+      if (fromHeader && fromHeader.value) {
+        const match = fromHeader.value.match(/^(.*?)\s*<(.+?)>$/);
+        if (match) {
+          sender.name = match[1].replace(/"/g, "").trim();
+          sender.email = match[2].trim();
+        } else {
+          sender.email = fromHeader.value.trim();
         }
       }
-      return "";
-    };
 
-    if (email.payload.body.data) {
-      bodyContent = Buffer.from(email.payload.body.data, "base64").toString(
-        "utf-8",
-      );
-    } else if (email.payload.parts) {
-      bodyContent = extractTextFromParts(email.payload.parts);
-    }
+      // 📧 Extraction du sujet
+      const subjectHeader = headers.find((h) => h.name === "Subject");
+      const subject = subjectHeader ? subjectHeader.value : "Sans objet";
 
-    bodyContent = cleanEmailBody(bodyContent);
+      // 📩 Extraction des destinataires
+      const getHeaderValue = (name) => {
+        const header = headers.find(
+          (h) => h.name.toLowerCase() === name.toLowerCase(),
+        );
+        return header ? header.value.split(",").map((addr) => addr.trim()) : [];
+      };
 
-    // 📎 Extraction des pièces jointes
-    const attachments = [];
-    if (email.payload.parts) {
-      email.payload.parts.forEach((part) => {
-        if (part.filename && part.body.attachmentId) {
-          attachments.push({
-            filename: part.filename,
-            attachmentId: part.body.attachmentId,
-            mimeType: part.mimeType,
-          });
+      const to = getHeaderValue("To");
+      const cc = getHeaderValue("Cc");
+      const bcc = getHeaderValue("Bcc");
+
+      // 📝 Extraction du corps de l'email
+      let bodyContent = "";
+
+      const extractTextFromParts = (parts) => {
+        for (const part of parts) {
+          if (part.mimeType === "text/plain" && part.body?.data) {
+            return Buffer.from(part.body.data, "base64").toString("utf-8");
+          }
+          if (part.parts) {
+            const extracted = extractTextFromParts(part.parts);
+            if (extracted) return extracted;
+          }
         }
-      });
-    }
+        return "";
+      };
 
-    return {
-      id: email.id,
-      sender, // 👈 Ajout de l'expéditeur (nom + email)
-      subject,
-      to,
-      cc,
-      bcc,
-      body: bodyContent,
-      attachments,
-    };
-  });
+      if (email.payload.body.data) {
+        bodyContent = Buffer.from(email.payload.body.data, "base64").toString(
+          "utf-8",
+        );
+      } else if (email.payload.parts) {
+        bodyContent = extractTextFromParts(email.payload.parts);
+      }
+
+      bodyContent = cleanEmailBody(bodyContent);
+
+      // 📎 Extraction des pièces jointes
+      const attachments = [];
+      if (email.payload.parts) {
+        for (const part of email.payload.parts) {
+          if (part.filename && part.body.attachmentId) {
+            const attachBase64 = await getAttachment(
+              email.id,
+              part.body.attachmentId,
+            );
+            attachments.push({
+              filename: part.filename,
+              attachmentId: part.body.attachmentId,
+              mimeType: part.mimeType,
+              base64: attachBase64, //
+            });
+          }
+        }
+      }
+
+      return {
+        id: email.id,
+        sender,
+        subject,
+        to,
+        cc,
+        bcc,
+        body: bodyContent,
+        attachments,
+      };
+    }),
+  );
+};
+
+/**
+ * Retrieves the base64 encoding of an attachment from a Gmail message.
+ *
+ * @param {string} messageId - The ID of the Gmail message containing the attachment.
+ * @param {string} attachmentId - The ID of the attachment to retrieve.
+ * @returns {Promise<string|null>} A promise that resolves to the base64 encoding of the attachment, or null if an error occurs.
+ */
+const getAttachment = async (messageId, attachmentId) => {
+  const gmail = getGmailService();
+
+  try {
+    const res = await gmail.users.messages.attachments.get({
+      userId: "me",
+      messageId,
+      id: attachmentId,
+    });
+
+    return res.data?.data;
+
+    // return `data:${res.data.mimeType};base64,${res.data.data}`;
+  } catch (error) {
+    console.error(
+      "❌ Erreur lors de la récupération de la pièce jointe :",
+      error,
+    );
+    return null;
+  }
 };
 
 exports.getEmailById = getEmailById;
@@ -241,3 +278,4 @@ exports.getEmailHistory = getEmailHistory;
 exports.getProfile = getProfile;
 exports.getEmails = getEmails;
 exports.extractEmailDetails = extractEmailDetails;
+exports.getAttachment = getAttachment;

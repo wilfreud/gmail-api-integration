@@ -1,6 +1,8 @@
-const fs = require("fs");
+const fs = require("node:fs");
 const MailComposer = require("nodemailer/lib/mail-composer");
-const getGmailService = require("./gmailService");
+const { getGmailService } = require("./gmailService");
+const dotenv = require("dotenv");
+dotenv.config({ path: ".env" });
 
 const sendMail = async ({ to, subject, text, html, attachments = [] }) => {
   const gmail = getGmailService();
@@ -16,7 +18,7 @@ const sendMail = async ({ to, subject, text, html, attachments = [] }) => {
 
   // Create email
   const mailOptions = {
-    from: "Commodore64",
+    from: `Commodore64 <${process.env.EMAIL}>`,
     to,
     subject,
     text,
