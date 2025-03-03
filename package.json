@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "watch": "nodemon ./webhook.js localhost 17899",
-    "format": "prettier --write '**/*.js'"
+    "format": "prettier --write '**/*.js'",
+    "generate": "echo '✨ Generating token ...' && node getToken.js"
+
   },
   "keywords": [],
   "author": "",

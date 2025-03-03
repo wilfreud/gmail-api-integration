@@ -4,7 +4,11 @@ const app = express();
 const watchGmail = require("./watch");
 const { getEmailHistory, extractEmailDetails } = require("./gmailService");
 const sendMail = require("./sendEmail");
-const fs = require("node:fs");
+const fs = require("fs");
+
+// For saving historyId to disk
+const filename = "historyId.txt";
+const file = fs.openSync(filename, "w");
 
 // TODO: find a way to save on disk (in case server restarts or stuff like that)
 let previousHistoryId = null;
@@ -133,11 +137,18 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-app.listen(17899, async () => {
+const server = app.listen(17899, async () => {
   try {
     const res = await watchGmail();
     // NOTE: cf to part where I say to save on disk, this could create gaps if app was down and mails arrived in between
     previousHistoryId = res?.historyId;
+
+    try {
+      fs.writeFileSync(file, previousHistoryId.toString());
+    } catch (error) {
+      console.error("❌ Error writing historyId to file:", error);
+    }
+
     console.log("✅ Serveur Pub/Sub en écoute sur port 17899");
   } catch (error) {
     console.error(
@@ -146,3 +157,27 @@ app.listen(17899, async () => {
     );
   }
 });
+
+// Handle shutdown signals
+function gracefulShutdown() {
+  console.log("⏱️ Shutting down gracefully...");
+  if (file) {
+    fs.closeSync(file);
+    console.log(`ℹ️ File '${filename}' has been overwritten and closed.`);
+  }
+  server.close(() => {
+    console.log("Closed out remaining connections.");
+    process.exit(0);
+  });
+
+  // If after a certain time, the connections are not closed, force shutdown
+  setTimeout(() => {
+    console.error(
+      "Could not close connections in time, forcefully shutting down",
+    );
+    process.exit(1);
+  }, 10000); // 10 seconds
+}
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
