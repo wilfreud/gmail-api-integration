@@ -1,11 +1,11 @@
 const fs = require("node:fs");
 const MailComposer = require("nodemailer/lib/mail-composer");
-const { getGmailService } = require("./gmailService");
+const { initializeGmailClient } = require("./gmailService");
 const dotenv = require("dotenv");
 dotenv.config({ path: ".env" });
 
 const sendMail = async ({ to, subject, text, html, attachments = [] }) => {
-  const gmail = getGmailService();
+  const gmail = initializeGmailClient();
 
   // Validate and read file attachments
   const validAttachments = attachments

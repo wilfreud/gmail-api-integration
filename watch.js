@@ -1,11 +1,11 @@
 const dotenv = require("dotenv");
 dotenv.config(".env");
-const { getGmailService } = require("./gmailService");
+const { initializeGmailClient } = require("./gmailService");
 
 // Note: According to the Gmail API Docs, you must Renew this watch call every 7 days to ensure the push notification settings are kept alive.
 const watchGmail = async () => {
   console.warn("⏳ Attempting to watch emails...");
-  const gmail = getGmailService(); // On récupère le service Gmail avec la fonction existante
+  const gmail = initializeGmailClient(); // On récupère le service Gmail avec la fonction existante
 
   // Le nom de ton Topic Pub/Sub que tu as créé dans Google Cloud
   const topicName = process.env.GC_PUBSUB_TOPIC_NAME;

@@ -1,110 +1,87 @@
-// docs: https://medium.com/@eagnir/understanding-gmails-push-notifications-via-google-cloud-pub-sub-3a002f9350ef
 const express = require("express");
-const app = express();
+const fs = require("fs");
 const watchGmail = require("./watch");
 const { getEmailHistory, extractEmailDetails } = require("./gmailService");
 const sendMail = require("./sendEmail");
-const fs = require("fs");
 
-// For saving historyId to disk
-const filename = "historyId.txt";
-const file = fs.openSync(filename, "w");
+// Constants
+const HISTORY_ID_FILE = "historyId.state";
+const PORT = 17899;
 
-// TODO: find a way to save on disk (in case server restarts or stuff like that)
-let previousHistoryId = null;
-
+// Initialize Express app
+const app = express();
 app.use(express.json());
 
-// Log des requêtes entrantes
+// Middleware for logging incoming requests
 app.use((req, res, next) => {
-  console.info(
-    `>>> Incoming ${req.method} request from ${req.hostname} (${req.ip}) ...`,
-  );
+  console.info(`>>> Incoming ${req.method} request from ${req.ip}`);
   next();
 });
 
+// Routes
 app.get("/", (_, res) => {
   res.status(200).send("<h3>It works dude!</h3>");
 });
 
 app.post("/pubsub", async (req, res) => {
-  console.log(
-    "📩 Nouvelle notification reçue de Pub/Sub:",
-    new Date().toISOString(),
-  );
+  console.log("📩 New Pub/Sub notification:", new Date().toISOString());
 
-  // Vérification du corps du message
-  if (!req.body || !req.body.message || !req.body.message.data) {
-    console.warn("⚠️ Aucune donnée dans le message reçu.");
+  // Validate incoming message
+  if (!req.body?.message?.data) {
+    console.warn("⚠️ No data in received message.");
     return res.status(400).send("Invalid Pub/Sub message");
   }
 
+  // Decode and parse message
   let decodedMessage;
   try {
     decodedMessage = JSON.parse(
       Buffer.from(req.body.message.data, "base64").toString(),
     );
   } catch (error) {
-    console.error("❌ Erreur lors du décodage du message Pub/Sub:", error);
+    console.error("❌ Error decoding Pub/Sub message:", error);
     return res.status(400).send("Invalid data format");
   }
 
-  console.log("📨 Contenu du message décodé:", decodedMessage);
-
-  let message;
-  try {
-    message = req.body.message;
-  } catch (error) {
-    console.warn(
-      "⚠️ Le message Pub/Sub ne semble pas être du JSON valide. Il sera ignoré.",
-    );
-    console.log(req.body);
-    return res.status(200).send("Ignored");
-  }
-
   const queryId = decodedMessage?.historyId;
-  // Vérification si l'on doit traiter ce message
-  // TODO: review condition
   if (!queryId) {
-    console.log("⚠️ Message reçu ne contenant pas d'id(s). Ignoré.");
+    console.log("⚠️ Message does not contain a historyId. Ignored.");
     return res.status(200).send("No action required");
   }
 
-  console.info("🔍 Recherche d'email avec ID/historyID:", queryId);
+  console.info("🔍 Searching for emails with historyId:", queryId);
 
   try {
     const emailInfos = await getEmailHistory(previousHistoryId, "SINISTRE");
-    console.info("👀", emailInfos.length, "Emails récupérés");
+    console.info("👀 Retrieved emails:", emailInfos.length);
     previousHistoryId = queryId;
 
     if (emailInfos.length > 0) {
       const emailsDetails = await extractEmailDetails(emailInfos);
 
-      // This is for some personal use, don't mind
+      // Forward email details (custom logic)
       await fetch("http://localhost:10000/api/pubsub", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ emailsDetails: emailsDetails }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailsDetails }),
       })
-        .then((data) => console.log("📬 Email details sent successfully:"))
+        .then(() => console.log("📬 Email details sent successfully"))
         .catch((error) =>
           console.error("❌ Error sending email details:", error),
         );
+
       console.dir(emailsDetails, { depth: null });
     }
   } catch (error) {
     console.error(
-      "❌ Erreur lors de la récupération de l'email:",
+      "❌ Error retrieving emails:",
       error?.response?.data?.error || error,
     );
   }
 
-  res.status(200).send("OK"); // ⚡ Toujours répondre 200 sinon Pub/Sub va renvoyer le message
+  res.status(200).send("OK");
 });
 
-// 📧 Send email endpoint
 app.post("/send-email", async (req, res) => {
   try {
     const { to, subject, text, html, attachments } = req.body;
@@ -115,7 +92,6 @@ app.post("/send-email", async (req, res) => {
       });
     }
 
-    // Validate attachments if provided
     const validAttachments = Array.isArray(attachments)
       ? attachments.filter(
           (file) => file.filename && file.path && fs.existsSync(file.path),
@@ -129,7 +105,6 @@ app.post("/send-email", async (req, res) => {
       html,
       attachments: validAttachments,
     });
-
     res.status(200).json({ message: "Email sent successfully!", response });
   } catch (error) {
     console.error("❌ Error sending email:", error);
@@ -137,40 +112,33 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-const server = app.listen(17899, async () => {
+// Server initialization
+let previousHistoryId = null;
+const server = app.listen(PORT, async () => {
   try {
     const res = await watchGmail();
-    // NOTE: cf to part where I say to save on disk, this could create gaps if app was down and mails arrived in between
     previousHistoryId = res?.historyId;
 
     try {
-      fs.writeFileSync(file, previousHistoryId.toString());
+      fs.writeFileSync(HISTORY_ID_FILE, previousHistoryId.toString());
     } catch (error) {
       console.error("❌ Error writing historyId to file:", error);
     }
 
-    console.log("✅ Serveur Pub/Sub en écoute sur port 17899");
+    console.log(`✅ Pub/Sub server listening on port ${PORT}`);
   } catch (error) {
-    console.error(
-      "❌ Erreur lors de l'activation de la surveillance Gmail:",
-      error,
-    );
+    console.error("❌ Error activating Gmail watch:", error);
   }
 });
 
-// Handle shutdown signals
+// Graceful shutdown
 function gracefulShutdown() {
   console.log("⏱️ Shutting down gracefully...");
-  if (file) {
-    fs.closeSync(file);
-    console.log(`ℹ️ File '${filename}' has been overwritten and closed.`);
-  }
   server.close(() => {
-    console.log("Closed out remaining connections.");
+    console.log("Closed remaining connections.");
     process.exit(0);
   });
 
-  // If after a certain time, the connections are not closed, force shutdown
   setTimeout(() => {
     console.error(
       "Could not close connections in time, forcefully shutting down",
