@@ -169,6 +169,7 @@ const sanitizeEmailContent = (content) => {
  * @returns {Promise<Array<EmailDetail>>} Processed email details
  */
 const processEmailMessages = async (messages) => {
+  console.dir(messages, { depth: null });
   return Promise.all(
     messages.map(async (message) => {
       const headers = message.payload.headers;

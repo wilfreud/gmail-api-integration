@@ -1,7 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const watchGmail = require("./watch");
-const { getEmailHistory, extractEmailDetails } = require("./gmailService");
+const { fetchEmailHistory, processEmailMessages } = require("./gmailService");
 const sendMail = require("./sendEmail");
 
 // Constants
@@ -52,12 +52,12 @@ app.post("/pubsub", async (req, res) => {
   console.info("🔍 Searching for emails with historyId:", queryId);
 
   try {
-    const emailInfos = await getEmailHistory(previousHistoryId, "SINISTRE");
+    const emailInfos = await fetchEmailHistory(previousHistoryId, "SINISTRE");
     console.info("👀 Retrieved emails:", emailInfos.length);
     previousHistoryId = queryId;
 
     if (emailInfos.length > 0) {
-      const emailsDetails = await extractEmailDetails(emailInfos);
+      const emailsDetails = await processEmailMessages(emailInfos);
 
       // Forward email details (custom logic)
       await fetch("http://localhost:10000/api/pubsub", {
